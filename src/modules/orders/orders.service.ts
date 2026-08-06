@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { Order, OrderStatus, PaymentStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { CartService } from '../cart/cart.service';
+import { CartItem } from '../cart/entities/cart-item.entity';
 import { CheckoutDto } from './dto/checkout.dto';
 
 const DEFAULT_DELIVERY_FEE = 20000; // LAK, flat fee per store shipment — adjust per your logistics rules
@@ -106,8 +107,19 @@ export class OrdersService {
           }
         }
 
-        // Clear this store's items out of the cart
-        await this.cartService.clearForStore(userId, storeId);
+        // Clear this store's items out of the cart — done via the SAME
+        // transactional `manager` (not the separately-injected
+        // cartService/cartRepo) so this delete runs on the same DB
+        // connection as the stock decrement above. Mixing connections
+        // inside one logical transaction was causing cross-connection
+        // lock waits (MySQL "Lock wait timeout exceeded").
+        await manager
+          .createQueryBuilder()
+          .delete()
+          .from(CartItem)
+          .where('user_id = :userId', { userId })
+          .andWhere('product_id IN (SELECT id FROM products WHERE store_id = :storeId)', { storeId })
+          .execute();
       }
     });
 
