@@ -83,6 +83,9 @@ export class Order {
   @Column({ name: 'delivery_method', type: 'enum', enum: ['delivery', 'pickup'], default: 'delivery' })
   deliveryMethod: string;
 
+  @Column({ name: 'courier_name', type: 'varchar', length: 100, nullable: true })
+  courierName: string | null;
+
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
   status: OrderStatus;
 

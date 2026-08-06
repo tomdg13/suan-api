@@ -78,6 +78,8 @@ export class OrdersService {
           status: OrderStatus.PENDING,
           paymentStatus: PaymentStatus.UNPAID,
           paymentMethod: dto.paymentMethod ?? null,
+          deliveryMethod: dto.deliveryMethod ?? 'delivery',
+          courierName: dto.deliveryMethod === 'pickup' ? null : (dto.courierName ?? null),
           orderDate: new Date(),
           items: orderItems as OrderItem[],
         });
@@ -91,14 +93,14 @@ export class OrdersService {
             await manager.decrement(
               'product_variants',
               { id: item.variantId },
-              'stock_qty',
+              'stockQty',
               Number(item.qty),
             );
           } else {
             await manager.decrement(
               'products',
               { id: item.productId },
-              'stock_qty',
+              'stockQty',
               Number(item.qty),
             );
           }
