@@ -13,6 +13,8 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { BannersModule } from './modules/banners/banners.module';
+import { PaymentQrModule } from './modules/payment-qr/payment-qr.module';
+import { UserAddressesModule } from './modules/user-addresses/user-addresses.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { BannersModule } from './modules/banners/banners.module';
     ReviewsModule,
     DashboardModule,
     BannersModule,
+    PaymentQrModule,
+    UserAddressesModule,
   ],
 })
 export class AppModule {}

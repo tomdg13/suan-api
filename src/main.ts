@@ -10,6 +10,7 @@ async function bootstrap() {
   mkdirSync(join(__dirname, '..', 'uploads', 'stores'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'products'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'banners'), { recursive: true });
+  mkdirSync(join(__dirname, '..', 'uploads', 'payment-qr'), { recursive: true });
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors();
