@@ -212,4 +212,37 @@ export class OrdersService {
     });
     return this.findOne(orderId);
   }
+
+  // ---- Admin: payment confirmation queue ----
+
+  // Orders where the buyer has uploaded proof (screenshot + RRN) but an
+  // admin hasn't confirmed the money actually landed yet. Oldest first,
+  // so admins clear the backlog in order.
+  findPendingPaymentConfirmations() {
+    return this.orderRepo
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.user', 'user')
+      .leftJoinAndSelect('order.store', 'store')
+      .leftJoinAndSelect('order.items', 'items')
+      .where('order.paymentStatus = :unpaid', { unpaid: PaymentStatus.UNPAID })
+      .andWhere('order.paymentProofUrl IS NOT NULL')
+      .orderBy('order.orderDate', 'ASC')
+      .getMany();
+  }
+
+  // Admin confirms the money actually arrived: marks payment as paid and
+  // moves the order on to CONFIRMED (seller can start packing/shipping).
+  async confirmPayment(id: number) {
+    const order = await this.orderRepo.findOne({ where: { id } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.paymentStatus === PaymentStatus.PAID) {
+      throw new BadRequestException('This order is already marked as paid');
+    }
+
+    await this.orderRepo.update(id, {
+      paymentStatus: PaymentStatus.PAID,
+      status: OrderStatus.CONFIRMED,
+    });
+    return this.findOne(id);
+  }
 }
