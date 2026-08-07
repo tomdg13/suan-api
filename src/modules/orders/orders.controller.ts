@@ -7,12 +7,16 @@ import {
   Param,
   ParseIntPipe,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   Request,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { OrdersService } from './orders.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { OrderStatus } from './entities/order.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { paymentProofMulterOptions } from '../../config/payment-proof-multer.config';
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
@@ -45,5 +49,19 @@ export class OrdersController {
     @Body('status') status: OrderStatus,
   ) {
     return this.ordersService.updateStatus(id, status);
+  }
+
+  // Buyer uploads their bank payment-confirmation screenshot + the RRN
+  // they read off it (pre-filled client-side via OCR, editable). Only
+  // the buyer who owns the order can attach proof to it.
+  @Post(':id/payment-proof')
+  @UseInterceptors(FileInterceptor('file', paymentProofMulterOptions))
+  submitPaymentProof(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('rrn') rrn: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req,
+  ) {
+    return this.ordersService.submitPaymentProof(id, req.user.userId, rrn, file?.filename);
   }
 }

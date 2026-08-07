@@ -86,6 +86,12 @@ export class Order {
   @Column({ name: 'courier_name', type: 'varchar', length: 100, nullable: true })
   courierName: string | null;
 
+  @Column({ name: 'payment_proof_url', type: 'varchar', length: 255, nullable: true })
+  paymentProofUrl: string | null;
+
+  @Column({ name: 'rrn', type: 'varchar', length: 100, nullable: true })
+  rrn: string | null;
+
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
   status: OrderStatus;
 

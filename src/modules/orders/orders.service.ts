@@ -1,10 +1,12 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Order, OrderStatus, PaymentStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { CartService } from '../cart/cart.service';
 import { CartItem } from '../cart/entities/cart-item.entity';
+import { Product } from '../products/entities/product.entity';
+import { ProductVariant } from '../products/entities/product-variant.entity';
 import { CheckoutDto } from './dto/checkout.dto';
 
 const DEFAULT_DELIVERY_FEE = 20000; // LAK, flat fee per store shipment — adjust per your logistics rules
@@ -43,6 +45,39 @@ export class OrdersService {
 
         let subtotal = 0;
         const orderItems: Partial<OrderItem>[] = [];
+
+        // ---- Stock check FIRST, before creating anything ----
+        // Uses pessimistic_write (SELECT ... FOR UPDATE) so the row is
+        // locked for the rest of this transaction. If two buyers check
+        // out the same last unit at the same moment, the second one
+        // blocks here until the first transaction commits/rolls back,
+        // then sees the updated (now-insufficient) stock and fails
+        // cleanly instead of both succeeding and going negative.
+        for (const cartItem of group.items) {
+          if (cartItem.variantId) {
+            const variant = await manager.findOne(ProductVariant, {
+              where: { id: cartItem.variantId },
+              lock: { mode: 'pessimistic_write' },
+            });
+            if (!variant || Number(variant.stockQty) < Number(cartItem.qty)) {
+              throw new BadRequestException(
+                `Not enough stock for "${cartItem.product.nameLao}"${cartItem.variant ? ' (' + cartItem.variant.variantLabel + ')' : ''}. ` +
+                `Available: ${variant ? Number(variant.stockQty) : 0}, requested: ${cartItem.qty}.`,
+              );
+            }
+          } else {
+            const product = await manager.findOne(Product, {
+              where: { id: cartItem.productId },
+              lock: { mode: 'pessimistic_write' },
+            });
+            if (!product || Number(product.stockQty) < Number(cartItem.qty)) {
+              throw new BadRequestException(
+                `Not enough stock for "${cartItem.product.nameLao}". ` +
+                `Available: ${product ? Number(product.stockQty) : 0}, requested: ${cartItem.qty}.`,
+              );
+            }
+          }
+        }
 
         for (const cartItem of group.items) {
           const unitPrice = cartItem.variant
@@ -88,7 +123,9 @@ export class OrdersService {
         const saved = await manager.save(order);
         createdOrders.push(saved);
 
-        // Deduct stock for each variant/product
+        // Deduct stock for each variant/product. Safe now — we already
+        // confirmed sufficient stock (with a row lock) above, within
+        // this same transaction.
         for (const item of group.items) {
           if (item.variantId) {
             await manager.decrement(
@@ -154,5 +191,25 @@ export class OrdersService {
   async updateStatus(id: number, status: OrderStatus) {
     await this.orderRepo.update(id, { status });
     return this.findOne(id);
+  }
+
+  // Buyer attaches their payment-confirmation screenshot + the RRN
+  // (Retrieval Reference Number) they read off it. Ownership-checked
+  // so a buyer can only submit proof for their own order.
+  async submitPaymentProof(orderId: number, userId: number, rrn: string, filename?: string) {
+    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.userId !== userId) {
+      throw new ForbiddenException('This order does not belong to you');
+    }
+    if (!filename) {
+      throw new BadRequestException('A payment screenshot is required');
+    }
+
+    await this.orderRepo.update(orderId, {
+      paymentProofUrl: `/uploads/payment-proofs/${filename}`,
+      rrn: rrn || null,
+    });
+    return this.findOne(orderId);
   }
 }
