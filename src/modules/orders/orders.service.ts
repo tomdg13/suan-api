@@ -166,7 +166,7 @@ export class OrdersService {
   findByUser(userId: number) {
     return this.orderRepo.find({
       where: { userId },
-      relations: ['items', 'store'],
+      relations: ['items', 'items.product', 'items.product.images', 'store'],
       order: { orderDate: 'DESC' },
     });
   }
