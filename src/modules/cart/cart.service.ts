@@ -27,7 +27,7 @@ export class CartService {
   async getCartGroupedByStore(userId: number) {
     const items = await this.cartRepo.find({
       where: { userId },
-      relations: ['product', 'product.store', 'variant'],
+      relations: ['product', 'product.store', 'product.images', 'variant'],
     });
 
     const grouped: Record<number, { store: any; items: CartItem[] }> = {};
