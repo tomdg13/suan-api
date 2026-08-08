@@ -66,7 +66,8 @@ export class ProductsService {
       .leftJoinAndSelect('product.store', 'store');
 
     if (!query.includeHidden) {
-      qb.where('product.isActive = 1');
+      qb.where('product.isActive = 1')
+        .andWhere('product.stockQty > 0');
     }
 
     if (query.categoryId) {
@@ -82,7 +83,7 @@ export class ProductsService {
     }
 
     qb.skip((page - 1) * limit).take(limit);
-    qb.orderBy('product.createdAt', 'DESC');
+    qb.orderBy('RAND()');
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total, page, limit };

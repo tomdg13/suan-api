@@ -174,7 +174,7 @@ export class OrdersService {
   findByStore(storeId: number) {
     return this.orderRepo.find({
       where: { storeId },
-      relations: ['items', 'user'],
+      relations: ['items', 'items.product', 'items.product.images', 'user'],
       order: { orderDate: 'DESC' },
     });
   }
