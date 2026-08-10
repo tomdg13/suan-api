@@ -59,6 +59,13 @@ export class ProductsController {
     return this.productsService.update(id, req.user.userId, req.user.role, dto);
   }
 
+  // Stock movement history for this product — newest first.
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/stock-history')
+  getStockHistory(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.productsService.getStockHistory(id, req.user.userId, req.user.role);
+  }
+
   // Up to 6 images per upload call — call again to add more later.
   @UseGuards(JwtAuthGuard)
   @Post(':id/images')
