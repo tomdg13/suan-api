@@ -59,6 +59,12 @@ export class ProductsController {
     return this.productsService.update(id, req.user.userId, req.user.role, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.productsService.remove(id, req.user.userId, req.user.role);
+  }
+
   // Stock movement history for this product — newest first.
   @UseGuards(JwtAuthGuard)
   @Get(':id/stock-history')
