@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
@@ -208,5 +208,30 @@ export class ProductsService {
     const productId = image.productId;
     await this.imageRepo.remove(image);
     return this.findOne(productId);
+  }
+
+  /**
+   * Deletes a product permanently. Blocked if any past order still
+   * references it (FK constraint) — hiding via isActive is the right
+   * move for products with order history; hard delete is only safe
+   * for products that were never actually ordered.
+   */
+  async remove(productId: number, requesterId: number, requesterRole: string) {
+    const product = await this.productRepo.findOne({
+      where: { id: productId },
+      relations: ['store'],
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.store.ownerId !== requesterId && requesterRole !== 'admin') {
+      throw new ForbiddenException('You do not own this product');
+    }
+    try {
+      await this.productRepo.remove(product);
+      return { deleted: true };
+    } catch (e) {
+      throw new BadRequestException(
+        'This product has past orders and cannot be deleted. Hide it instead using the visibility toggle.',
+      );
+    }
   }
 }
