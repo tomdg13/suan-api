@@ -32,5 +32,5 @@ export class QueryProductsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  limit?: number = 20;
+  limit?: number = 100;
 }

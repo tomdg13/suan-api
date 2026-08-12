@@ -15,6 +15,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { BannersModule } from './modules/banners/banners.module';
 import { PaymentQrModule } from './modules/payment-qr/payment-qr.module';
 import { UserAddressesModule } from './modules/user-addresses/user-addresses.module';
+import { FeesModule } from './modules/fees/fees.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { UserAddressesModule } from './modules/user-addresses/user-addresses.mod
     BannersModule,
     PaymentQrModule,
     UserAddressesModule,
+    FeesModule,
   ],
 })
 export class AppModule {}

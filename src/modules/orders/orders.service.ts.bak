@@ -8,7 +8,8 @@ import { CartItem } from '../cart/entities/cart-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { ProductVariant } from '../products/entities/product-variant.entity';
 import { CheckoutDto } from './dto/checkout.dto';
-import { FeesService } from '../fees/fees.service';
+
+const DEFAULT_DELIVERY_FEE = 20000; // LAK, flat fee per store shipment — adjust per your logistics rules
 
 @Injectable()
 export class OrdersService {
@@ -16,7 +17,6 @@ export class OrdersService {
     @InjectRepository(Order) private readonly orderRepo: Repository<Order>,
     @InjectRepository(OrderItem) private readonly orderItemRepo: Repository<OrderItem>,
     private readonly cartService: CartService,
-    private readonly feesService: FeesService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -26,9 +26,11 @@ export class OrdersService {
     return `ORD-${datePart}-${storeId}-${randomPart}`;
   }
 
-  // Checkout splits the user's cart into ONE ORDER PER STORE
-  // (matches multi-vendor marketplace pattern - each seller manages
-  // their own order/delivery/payout independently).
+  /**
+   * Checkout splits the user's cart into ONE ORDER PER STORE
+   * (matches multi-vendor marketplace pattern — each seller manages
+   * their own order/delivery/payout independently).
+   */
   async checkout(userId: number, dto: CheckoutDto) {
     const grouped = await this.cartService.getCartGroupedByStore(userId);
     if (!grouped.length) {
@@ -37,11 +39,6 @@ export class OrdersService {
 
     const createdOrders: Order[] = [];
 
-    // Fetch the active fee configs ONCE for this whole checkout - every
-    // store's order gets fees computed against the same config list, just
-    // applied to that store's own subtotal.
-    const activeFeeConfigs = await this.feesService.findActive();
-
     await this.dataSource.transaction(async (manager) => {
       for (const group of grouped) {
         const storeId = group.store.id;
@@ -49,6 +46,13 @@ export class OrdersService {
         let subtotal = 0;
         const orderItems: Partial<OrderItem>[] = [];
 
+        // ---- Stock check FIRST, before creating anything ----
+        // Uses pessimistic_write (SELECT ... FOR UPDATE) so the row is
+        // locked for the rest of this transaction. If two buyers check
+        // out the same last unit at the same moment, the second one
+        // blocks here until the first transaction commits/rolls back,
+        // then sees the updated (now-insufficient) stock and fails
+        // cleanly instead of both succeeding and going negative.
         for (const cartItem of group.items) {
           if (cartItem.variantId) {
             const variant = await manager.findOne(ProductVariant, {
@@ -93,11 +97,8 @@ export class OrdersService {
           });
         }
 
-        // Configurable fees (delivery, insurance %, service fee, etc.) -
-        // admin-managed via /fees, applied against this store's subtotal.
-        const feeLines = this.feesService.computeFeeLines(activeFeeConfigs, subtotal);
-        const deliveryFee = feeLines.reduce((sum, f) => sum + f.amount, 0);
-        const discountAmount = 0;
+        const deliveryFee = DEFAULT_DELIVERY_FEE;
+        const discountAmount = 0; // TODO: apply promotion logic here if dto.promotionId is set
         const totalAmount = subtotal + deliveryFee - discountAmount;
 
         const order = manager.create(Order, {
@@ -122,9 +123,9 @@ export class OrdersService {
         const saved = await manager.save(order);
         createdOrders.push(saved);
 
-        // Persist the fee breakdown snapshot for this order.
-        await this.feesService.persistLines(manager, saved.id, feeLines);
-
+        // Deduct stock for each variant/product. Safe now — we already
+        // confirmed sufficient stock (with a row lock) above, within
+        // this same transaction.
         for (const item of group.items) {
           if (item.variantId) {
             await manager.decrement(
@@ -143,6 +144,12 @@ export class OrdersService {
           }
         }
 
+        // Clear this store's items out of the cart — done via the SAME
+        // transactional `manager` (not the separately-injected
+        // cartService/cartRepo) so this delete runs on the same DB
+        // connection as the stock decrement above. Mixing connections
+        // inside one logical transaction was causing cross-connection
+        // lock waits (MySQL "Lock wait timeout exceeded").
         await manager
           .createQueryBuilder()
           .delete()
@@ -186,6 +193,9 @@ export class OrdersService {
     return this.findOne(id);
   }
 
+  // Buyer attaches their payment-confirmation screenshot + the RRN
+  // (Retrieval Reference Number) they read off it. Ownership-checked
+  // so a buyer can only submit proof for their own order.
   async submitPaymentProof(orderId: number, userId: number, rrn: string, filename?: string) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order not found');
@@ -203,6 +213,11 @@ export class OrdersService {
     return this.findOne(orderId);
   }
 
+  // ---- Admin: payment confirmation queue ----
+
+  // Orders where the buyer has uploaded proof (screenshot + RRN) but an
+  // admin hasn't confirmed the money actually landed yet. Oldest first,
+  // so admins clear the backlog in order.
   findPendingPaymentConfirmations() {
     return this.orderRepo
       .createQueryBuilder('order')
@@ -215,6 +230,8 @@ export class OrdersService {
       .getMany();
   }
 
+  // Admin confirms the money actually arrived: marks payment as paid and
+  // moves the order on to CONFIRMED (seller can start packing/shipping).
   async confirmPayment(id: number) {
     const order = await this.orderRepo.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');

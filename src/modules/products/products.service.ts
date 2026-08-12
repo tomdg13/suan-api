@@ -57,15 +57,14 @@ export class ProductsService {
 
   async findAll(query: QueryProductsDto) {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const limit = Math.min(query.limit ?? 100, 500);
     const qb = this.productRepo
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.variants', 'variants')
       .leftJoinAndSelect('product.images', 'images')
       .leftJoinAndSelect('product.store', 'store');
     if (!query.includeHidden) {
-      qb.where('product.isActive = 1')
-        .andWhere('product.stockQty > 0');
+      qb.where('product.isActive = 1');
     }
     if (query.categoryId) {
       qb.andWhere('product.categoryId = :categoryId', { categoryId: query.categoryId });
