@@ -23,4 +23,8 @@ export class UpdateUserDto {
   @Min(0)
   @Max(1)
   isActive?: number;
+
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }

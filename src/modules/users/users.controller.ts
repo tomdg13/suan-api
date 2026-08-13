@@ -1,13 +1,24 @@
-import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe, UseGuards, UseInterceptors, UploadedFile, Request } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard';
+import { avatarMulterOptions } from '../../config/avatar-multer.config';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post('me/avatar')
+  @UseInterceptors(FileInterceptor('file', avatarMulterOptions))
+  async uploadMyAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    await this.usersService.update(req.user.userId, { avatarUrl } as UpdateUserDto);
+    return { avatarUrl };
+  }
 
   @Post()
   create(@Body() dto: CreateUserDto) {
