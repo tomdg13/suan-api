@@ -9,6 +9,7 @@ async function bootstrap() {
   // Make sure the uploads folders exist before serving/writing to them.
   mkdirSync(join(__dirname, '..', 'uploads', 'stores'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'products'), { recursive: true });
+  mkdirSync(join(__dirname, '..', 'uploads', 'categories'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'banners'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'payment-qr'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'avatars'), { recursive: true });

@@ -16,6 +16,8 @@ import { BannersModule } from './modules/banners/banners.module';
 import { PaymentQrModule } from './modules/payment-qr/payment-qr.module';
 import { UserAddressesModule } from './modules/user-addresses/user-addresses.module';
 import { FeesModule } from './modules/fees/fees.module';
+import { AppContentModule } from './modules/app-content/app-content.module';
+import { LogisticsProviderModule } from './modules/logistics-provider/logistics-provider.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { FeesModule } from './modules/fees/fees.module';
     PaymentQrModule,
     UserAddressesModule,
     FeesModule,
+    AppContentModule,
+    LogisticsProviderModule,
   ],
 })
 export class AppModule {}
