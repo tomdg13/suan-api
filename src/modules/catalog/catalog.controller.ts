@@ -35,6 +35,12 @@ export class CatalogController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard) @Roles('admin')
+  @Patch('categories/reorder')
+  reorderCategories(@Body() body: { items: { id: number; sortOrder: number }[] }) {
+    return this.catalogService.reorderCategories(body.items);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles('admin')
   @Patch('categories/:id')
   @UseInterceptors(FileInterceptor('file', categoryMulterOptions))
   updateCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto, @UploadedFile() file: Express.Multer.File) {

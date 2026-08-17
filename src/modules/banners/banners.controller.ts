@@ -47,6 +47,13 @@ export class BannersController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
+  @Patch('reorder')
+  reorder(@Body() body: { items: { id: number; sortOrder: number }[] }) {
+    return this.bannersService.reorder(body.items);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file', bannerMulterOptions))
   update(

@@ -40,6 +40,15 @@ export class LogisticsProviderService {
     return this.findOne(id);
   }
 
+  async reorder(items: { id: number; sortOrder: number }[]) {
+    await Promise.all(
+      items.map((item) =>
+        this.repo.update(item.id, { sort_order: item.sortOrder }),
+      ),
+    );
+    return this.findAll();
+  }
+
   async remove(id: number) {
     await this.findOne(id);
     await this.repo.delete(id);

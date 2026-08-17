@@ -43,6 +43,15 @@ export class CatalogService {
     return this.categoryRepo.save(cat);
   }
 
+  async reorderCategories(items: { id: number; sortOrder: number }[]) {
+    await Promise.all(
+      items.map((item) =>
+        this.categoryRepo.update(item.id, { sortOrder: item.sortOrder }),
+      ),
+    );
+    return this.findAllCategoriesAdmin();
+  }
+
   async updateCategory(id: number, dto: UpdateCategoryDto, filename?: string) {
     const cat = await this.categoryRepo.findOne({ where: { id } });
     if (!cat) throw new NotFoundException('Category not found');

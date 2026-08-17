@@ -46,6 +46,15 @@ export class BannersService {
     return this.bannerRepo.save(banner);
   }
 
+  async reorder(items: { id: number; sortOrder: number }[]) {
+    await Promise.all(
+      items.map((item) =>
+        this.bannerRepo.update(item.id, { sortOrder: item.sortOrder }),
+      ),
+    );
+    return this.findAll();
+  }
+
   async remove(id: number) {
     const banner = await this.bannerRepo.findOne({ where: { id } });
     if (!banner) throw new NotFoundException('Banner not found');

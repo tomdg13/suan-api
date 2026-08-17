@@ -24,6 +24,11 @@ export class LogisticsProviderController {
     return this.service.findAll();
   }
 
+  @Patch('reorder')
+  reorder(@Body() body: { items: { id: number; sortOrder: number }[] }) {
+    return this.service.reorder(body.items);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
