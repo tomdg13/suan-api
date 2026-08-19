@@ -29,14 +29,19 @@ export class LogisticsProviderService {
     return item;
   }
 
-  create(dto: CreateLogisticsProviderDto) {
-    const entity = this.repo.create(dto as Partial<LogisticsProvider>);
+  create(dto: CreateLogisticsProviderDto, filename?: string) {
+    const entity = this.repo.create({
+      ...dto,
+      logo_url: filename ? `/uploads/logistics-providers/${filename}` : dto.logo_url,
+    } as Partial<LogisticsProvider>);
     return this.repo.save(entity);
   }
 
-  async update(id: number, dto: UpdateLogisticsProviderDto) {
+  async update(id: number, dto: UpdateLogisticsProviderDto, filename?: string) {
     await this.findOne(id);
-    await this.repo.update(id, dto as Partial<LogisticsProvider>);
+    const patch: Partial<LogisticsProvider> = { ...dto } as Partial<LogisticsProvider>;
+    if (filename) patch.logo_url = `/uploads/logistics-providers/${filename}`;
+    await this.repo.update(id, patch);
     return this.findOne(id);
   }
 

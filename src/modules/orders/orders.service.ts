@@ -9,6 +9,8 @@ import { Product } from '../products/entities/product.entity';
 import { ProductVariant } from '../products/entities/product-variant.entity';
 import { CheckoutDto } from './dto/checkout.dto';
 import { FeesService } from '../fees/fees.service';
+import { ShippingTiersService } from '../shipping-tiers/shipping-tiers.service';
+import { LogisticsProviderService } from '../logistics-provider/logistics-provider.service';
 
 @Injectable()
 export class OrdersService {
@@ -17,6 +19,8 @@ export class OrdersService {
     @InjectRepository(OrderItem) private readonly orderItemRepo: Repository<OrderItem>,
     private readonly cartService: CartService,
     private readonly feesService: FeesService,
+    private readonly shippingTiersService: ShippingTiersService,
+    private readonly logisticsProviderService: LogisticsProviderService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -41,6 +45,12 @@ export class OrdersService {
     // store's order gets fees computed against the same config list, just
     // applied to that store's own subtotal.
     const activeFeeConfigs = await this.feesService.findActive();
+
+    // Resolve which delivery option the buyer picked (image 1's radio list) -
+    // its type decides how the fee is calculated for every store's order below.
+    const provider = dto.providerId
+      ? await this.logisticsProviderService.findOne(dto.providerId)
+      : null;
 
     await this.dataSource.transaction(async (manager) => {
       for (const group of grouped) {
@@ -93,10 +103,66 @@ export class OrdersService {
           });
         }
 
-        // Configurable fees (delivery, insurance %, service fee, etc.) -
-        // admin-managed via /fees, applied against this store's subtotal.
-        const feeLines = this.feesService.computeFeeLines(activeFeeConfigs, subtotal);
-        const deliveryFee = feeLines.reduce((sum, f) => sum + f.amount, 0);
+        // Weight-based shipping fee (ຄ່າຂົນສົງ) - sums each cart item's
+        // product weight (kg) × qty for this store's group, then finds
+        // the matching tier from the admin-configured shipping_weight_tiers
+        // table (see shipping-tiers module). Folded into deliveryFee
+        // alongside the existing configurable fees below.
+        let shippingFee = 0;
+        let configuredFeesTotal = 0;
+        let feeLines: any[] = [];
+
+        // Fee calculation branches on the selected provider's type
+        // (logistics_provider.type): store_pickup is free, customer_courier
+        // uses the flat fee_configs fee, logistic uses weight-based tiers.
+        const providerType = provider?.type ?? (dto.deliveryMethod === 'pickup' ? 'store_pickup' : null);
+        // Derive deliveryMethod from the resolved provider type rather than
+        // trusting a separate client-sent field, so the two can't disagree
+        // (e.g. providerId=store_pickup but deliveryMethod left as 'delivery').
+        const resolvedDeliveryMethod = providerType === 'store_pickup' ? 'pickup' : 'delivery';
+
+        if (providerType === 'store_pickup') {
+          // No delivery fee - buyer collects from the store.
+        } else if (providerType === 'customer_courier') {
+          feeLines = this.feesService.computeFeeLines(activeFeeConfigs, subtotal);
+          configuredFeesTotal = feeLines.reduce((sum, f) => sum + f.amount, 0);
+        } else if (providerType === 'logistic' && provider) {
+          // Tiers are configured per-product now, so sum each cart item's
+          // fee individually rather than computing one fee for the group.
+          let logisticFee = 0;
+          for (const item of group.items) {
+            if (!item.product?.id) continue;
+            const weightKg = Number(item.product.weight ?? 0) * Number(item.qty);
+            const sizeCm = Number(item.product.sizeCm ?? 0);
+            const result = await this.shippingTiersService.calculateFeeForProduct(
+              item.product.id,
+              weightKg,
+              sizeCm,
+            );
+            logisticFee += result.price;
+          }
+          shippingFee = logisticFee;
+        } else {
+          // No provider selected - fall back to per-product tiers too
+          // (there is no more group/global calculateFee() method).
+          let fallbackFee = 0;
+          for (const item of group.items) {
+            if (!item.product?.id) continue;
+            const weightKg = Number(item.product.weight ?? 0) * Number(item.qty);
+            const sizeCm = Number(item.product.sizeCm ?? 0);
+            const result = await this.shippingTiersService.calculateFeeForProduct(
+              item.product.id,
+              weightKg,
+              sizeCm,
+            );
+            fallbackFee += result.price;
+          }
+          shippingFee = fallbackFee;
+          feeLines = this.feesService.computeFeeLines(activeFeeConfigs, subtotal);
+          configuredFeesTotal = feeLines.reduce((sum, f) => sum + f.amount, 0);
+        }
+
+        const deliveryFee = configuredFeesTotal + shippingFee;
         const discountAmount = 0;
         const totalAmount = subtotal + deliveryFee - discountAmount;
 
@@ -113,8 +179,10 @@ export class OrdersService {
           status: OrderStatus.PENDING,
           paymentStatus: PaymentStatus.UNPAID,
           paymentMethod: dto.paymentMethod ?? null,
-          deliveryMethod: dto.deliveryMethod ?? 'delivery',
-          courierName: dto.deliveryMethod === 'pickup' ? null : (dto.courierName ?? null),
+          deliveryMethod: resolvedDeliveryMethod,
+          courierName: resolvedDeliveryMethod === 'pickup' ? null : (dto.courierName ?? null),
+          providerId: provider?.id ?? null,
+          providerType: provider?.type ?? null,
           orderDate: new Date(),
           items: orderItems as OrderItem[],
         });
@@ -122,7 +190,10 @@ export class OrdersService {
         const saved = await manager.save(order);
         createdOrders.push(saved);
 
-        // Persist the fee breakdown snapshot for this order.
+        // Persist the configured-fee breakdown snapshot for this order.
+        // (Shipping fee is captured in deliveryFee above, not as a
+        // separate order_fees row, since feeConfigId there has no
+        // matching fee_configs entry for weight-tier shipping.)
         await this.feesService.persistLines(manager, saved.id, feeLines);
 
         for (const item of group.items) {

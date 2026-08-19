@@ -17,8 +17,14 @@ export class CheckoutDto {
   @IsEnum(['delivery', 'pickup'])
   deliveryMethod?: 'delivery' | 'pickup';
 
-  // Name of the logistics company handling delivery, e.g. "Anousith Logistic".
-  // Only meaningful when deliveryMethod is 'delivery'.
+  // ID of the selected logistics_provider row (image 1's radio list:
+  // HAL Express / Anousith / store pickup / deliver-to-your-address).
+  // Determines how the delivery fee is calculated.
+  @IsOptional()
+  @IsInt()
+  providerId?: number;
+
+  // Kept for backward compatibility / display only - no longer drives pricing.
   @IsOptional()
   @IsString()
   courierName?: string;

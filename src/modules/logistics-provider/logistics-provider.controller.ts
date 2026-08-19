@@ -9,7 +9,11 @@ import {
   Param,
   ParseIntPipe,
   Query,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { logisticsProviderMulterOptions } from '../../config/logistics-provider-multer.config';
 import { LogisticsProviderService } from './logistics-provider.service';
 import { CreateLogisticsProviderDto } from './dto/create-logistics-provider.dto';
 import { UpdateLogisticsProviderDto } from './dto/update-logistics-provider.dto';
@@ -35,13 +39,15 @@ export class LogisticsProviderController {
   }
 
   @Post()
-  create(@Body() dto: CreateLogisticsProviderDto) {
-    return this.service.create(dto);
+  @UseInterceptors(FileInterceptor('file', logisticsProviderMulterOptions))
+  create(@Body() dto: CreateLogisticsProviderDto, @UploadedFile() file: Express.Multer.File) {
+    return this.service.create(dto, file?.filename);
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateLogisticsProviderDto) {
-    return this.service.update(id, dto);
+  @UseInterceptors(FileInterceptor('file', logisticsProviderMulterOptions))
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateLogisticsProviderDto, @UploadedFile() file: Express.Multer.File) {
+    return this.service.update(id, dto, file?.filename);
   }
 
   @Patch(':id/toggle-active')

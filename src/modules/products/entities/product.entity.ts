@@ -13,6 +13,7 @@ import { Category } from '../../catalog/entities/category.entity';
 import { Unit } from '../../catalog/entities/unit.entity';
 import { ProductVariant } from './product-variant.entity';
 import { ProductImage } from './product-image.entity';
+import { LogisticsProvider } from '../../logistics-provider/entities/logistics-provider.entity';
 
 @Entity('products')
 export class Product {
@@ -39,6 +40,16 @@ export class Product {
   @ManyToOne(() => Unit)
   @JoinColumn({ name: 'unit_id' })
   unit: Unit;
+
+  // Which logistics provider this product ships with. Only providers
+  // with allow_weight_tiers=1 let the seller pick weight/size tiers;
+  // for other provider types the courier/company sets its own fee.
+  @Column({ name: 'provider_id', type: 'int', nullable: true })
+  providerId: number | null;
+
+  @ManyToOne(() => LogisticsProvider, { nullable: true })
+  @JoinColumn({ name: 'provider_id' })
+  provider: LogisticsProvider | null;
 
   @Column({ name: 'name_lao', length: 150 })
   nameLao: string;
@@ -69,6 +80,15 @@ export class Product {
 
   @Column({ name: 'is_active', type: 'tinyint', default: 1 })
   isActive: number;
+
+  // weight in kg, used to calculate shipping fee tiers
+  @Column({ name: 'weight', type: 'decimal', precision: 10, scale: 2, default: 0.0 })
+  weight: number;
+
+  // size in cm (longest side / combined dimension), used to calculate
+  // size-based shipping fee tiers alongside weight-based ones.
+  @Column({ name: 'size_cm', type: 'decimal', precision: 10, scale: 2, default: 0.0 })
+  sizeCm: number;
 
   @OneToMany(() => ProductVariant, (v) => v.product)
   variants: ProductVariant[];

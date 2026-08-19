@@ -23,6 +23,10 @@ export class CreateProductDto {
   @IsInt()
   unitId: number;
 
+  @IsOptional()
+  @IsInt()
+  providerId?: number;
+
   @IsString()
   nameLao: string;
 
@@ -40,6 +44,16 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   stockQty?: number;
+
+  // weight in kg, used to calculate shipping fee tiers
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
+
+  // size in cm, used to calculate size-based shipping fee tiers
+  @IsOptional()
+  @IsNumber()
+  sizeCm?: number;
 
   @IsOptional()
   @IsArray()

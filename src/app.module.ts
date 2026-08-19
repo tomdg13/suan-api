@@ -18,6 +18,7 @@ import { UserAddressesModule } from './modules/user-addresses/user-addresses.mod
 import { FeesModule } from './modules/fees/fees.module';
 import { AppContentModule } from './modules/app-content/app-content.module';
 import { LogisticsProviderModule } from './modules/logistics-provider/logistics-provider.module';
+import { ShippingTiersModule } from './modules/shipping-tiers/shipping-tiers.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { LogisticsProviderModule } from './modules/logistics-provider/logistics-
     FeesModule,
     AppContentModule,
     LogisticsProviderModule,
+    ShippingTiersModule,
   ],
 })
 export class AppModule {}

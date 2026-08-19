@@ -85,6 +85,10 @@ export class Order {
 
   @Column({ name: 'courier_name', type: 'varchar', length: 100, nullable: true })
   courierName: string | null;
+  @Column({ name: 'provider_id', type: 'int', unsigned: true, nullable: true })
+  providerId: number | null;
+  @Column({ name: 'provider_type', type: 'enum', enum: ['logistic', 'customer_courier', 'store_pickup'], nullable: true })
+  providerType: string | null;
 
   @Column({ name: 'payment_proof_url', type: 'varchar', length: 255, nullable: true })
   paymentProofUrl: string | null;

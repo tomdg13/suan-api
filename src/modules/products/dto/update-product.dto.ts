@@ -10,6 +10,10 @@ export class UpdateProductDto {
   unitId?: number;
 
   @IsOptional()
+  @IsInt()
+  providerId?: number;
+
+  @IsOptional()
   @IsString()
   nameLao?: string;
 
@@ -28,6 +32,16 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   stockQty?: number;
+
+  // weight in kg, used to calculate shipping fee tiers
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
+
+  // size in cm, used to calculate size-based shipping fee tiers
+  @IsOptional()
+  @IsNumber()
+  sizeCm?: number;
 
   // 1 = visible to buyers, 0 = hidden
   @IsOptional()

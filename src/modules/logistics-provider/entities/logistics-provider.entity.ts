@@ -35,6 +35,11 @@ export class LogisticsProvider {
   @Column({ default: 0 })
   sort_order: number;
 
+  // Whether sellers may create their own weight/size shipping tiers for
+  // this provider (admin-controlled toggle, editable from admin UI).
+  @Column({ type: 'tinyint', default: 0 })
+  allow_weight_tiers: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 

@@ -8,6 +8,7 @@ import { ProductStockLog } from './entities/product-stock-log.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
+import { LogisticsProvider } from '../logistics-provider/entities/logistics-provider.entity';
 
 @Injectable()
 export class ProductsService {
@@ -20,18 +21,46 @@ export class ProductsService {
     private readonly imageRepo: Repository<ProductImage>,
     @InjectRepository(ProductStockLog)
     private readonly stockLogRepo: Repository<ProductStockLog>,
+    @InjectRepository(LogisticsProvider)
+    private readonly providerRepo: Repository<LogisticsProvider>,
   ) {}
 
+  // If a providerId is given and that provider does NOT allow weight
+  // tiers, weight/sizeCm are meaningless for it (fee is calculated by
+  // the courier/company or is store-pickup), so silently clearing them
+  // is fine and avoids stale/misleading values.
+  private async resolveShippingFields(
+    providerId: number | undefined,
+    weight: number | undefined,
+    sizeCm: number | undefined,
+  ) {
+    if (providerId == null) return { weight, sizeCm };
+    const provider = await this.providerRepo.findOne({ where: { id: providerId } });
+    if (!provider) throw new NotFoundException('ບໍ່ພົບຜູ້ໃຫ້ບໍລິການຂົນສົ່ງ');
+    if (!provider.allow_weight_tiers) {
+      return { weight: 0, sizeCm: 0 };
+    }
+    return { weight, sizeCm };
+  }
+
   async create(storeId: number, dto: CreateProductDto) {
+    const { weight, sizeCm } = await this.resolveShippingFields(
+      dto.providerId,
+      dto.weight,
+      dto.sizeCm,
+    );
     const product = this.productRepo.create({
       storeId,
       categoryId: dto.categoryId,
       unitId: dto.unitId,
+      providerId: dto.providerId ?? null,
       nameLao: dto.nameLao,
       nameEn: dto.nameEn,
       description: dto.description,
       basePrice: dto.basePrice,
       stockQty: dto.stockQty ?? 0,
+      weight: weight ?? 0,
+      sizeCm: sizeCm ?? 0,
     });
     const saved = await this.productRepo.save(product);
     if (dto.variants?.length) {
@@ -86,7 +115,7 @@ export class ProductsService {
   async findOne(id: number) {
     const product = await this.productRepo.findOne({
       where: { id },
-      relations: ['variants', 'images', 'store', 'category', 'unit'],
+      relations: ['variants', 'images', 'store', 'category', 'unit', 'provider'],
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
@@ -101,7 +130,7 @@ export class ProductsService {
 
   /**
    * Edits a product's fields — name, description, price, category,
-   * unit, stock, and/or visibility (isActive: 1 visible / 0 hidden).
+   * unit, stock, provider, and/or visibility (isActive: 1 visible / 0 hidden).
    * Only the owning store's owner (or an admin) may edit it.
    *
    * If stockQty is part of the update AND differs from the current
@@ -125,6 +154,17 @@ export class ProductsService {
 
     const previousStock = Number(product.stockQty);
     const stockChanging = dto.stockQty !== undefined && Number(dto.stockQty) !== previousStock;
+
+    const effectiveProviderId = dto.providerId ?? product.providerId ?? undefined;
+    if (dto.providerId !== undefined || dto.weight !== undefined || dto.sizeCm !== undefined) {
+      const { weight, sizeCm } = await this.resolveShippingFields(
+        effectiveProviderId,
+        dto.weight,
+        dto.sizeCm,
+      );
+      dto.weight = weight;
+      dto.sizeCm = sizeCm;
+    }
 
     Object.assign(product, dto);
     await this.productRepo.save(product);
